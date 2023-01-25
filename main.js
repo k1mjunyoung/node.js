@@ -1,38 +1,25 @@
+// nodejs module
 var http = require('http');
 var fs = require('fs');
 var url = require('url');
 var qs = require('querystring');
+var path = require('path');
+var sanitizeHtml = require('sanitize-html');
 
-// refactoring(tamplate 객체화)
-var template = {
-  html: function(title, list, body, control){
-    return `
-    <!doctype html>
-    <html>
-    <head>
-      <title>WEB - ${title}</title>
-      <meta charset="utf-8">
-    </head>
-    <body>
-      <h1><a href="/">WEB</a></h1>
-      ${list}
-      ${control}
-      ${body}
-    </body>
-    </html>
-    `;
-  },
-  list: function(filelist){
-    var list = '<ul>';
-    var i = 0;
-    while(i < filelist.length){
-      list = list + `<li><a href="/?id=${filelist[i]}">${filelist[i]}</a></li>`;
-      i = i + 1;
-    }
-    list = list+'</ul>';
-    return list;
-  }
-}
+// database
+var mysql      = require('mysql');
+var config     = require('./lib/mysqlConfig');
+
+var db = mysql.createConnection({
+  host     : config.host,
+  user     : config.user,
+  password : config.password,
+  database : config.database
+});
+db.connect(); // 실제 접속
+
+// custom module(모듈화)
+var template = require('./lib/template.js');
 
 var app = http.createServer(function(request,response){
     var _url = request.url;
@@ -43,6 +30,7 @@ var app = http.createServer(function(request,response){
     // 홈페이지
     if(pathname === '/'){
       if(queryData.id === undefined){
+        /*
         fs.readdir('./data', function(error, filelist){
           // 프로필 요소들
           var title = '홍길동';
@@ -68,22 +56,54 @@ var app = http.createServer(function(request,response){
           response.writeHead(200);
           response.end(html);
         })
-      // 
+        */
+       db.query(`SELECT * FROM test`, function(error, authors){
+        console.log(authors);
+
+        var title = `${authors[0].name}`;
+        var job = '대학생';
+        var description = '안녕하세요 홍길동입니다.';
+        var youtube = `DhXO4d6m6f4`;
+        var tel = '010-0000-0000';
+        var email = 'example@sch.ac.kr';
+        var address = '순천향대학교 공과대학';
+        var list = template.list(authors);
+        var html = template.html(title, list,
+          `
+          <h2>${title}</h2>
+          <h3>${job}</h3>
+          </div>${description}</div>
+          </div><iframe width="560" height="315" src="https://www.youtube.com/embed/${youtube}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>
+          <div>${tel}</div>
+          <div>${email}</div>
+          <div>${address}</div>
+          `,
+          `<a href="/create">create</a>`);
+        response.writeHead(200);
+        response.end(html);
+       });
+       db.end();
       } else {
           fs.readdir('./data', function(error, filelist){
-            fs.readFile(`data/${queryData.id}`, 'utf8', function(err, description){
+            var filteredId = path.parse(queryData.id).base;
+            fs.readFile(`data/${filteredId}`, 'utf8', function(err, description){
               var title = queryData.id;
+              var sanitizedTitle = sanitizeHtml(title);
+              var sanitizedDescription = sanitizeHtml(description, {
+                // 허용할 html 태그를 인자로
+                allowedTags: ['h1']
+              });
               var list = template.list(filelist); 
-              var html = template.html(title, list,
+              var html = template.html(sanitizedTitle, list,
                 `
-                <h2>${title}</h2>
-                <div>${description}</div>
+                <h2>${sanitizedTitle}</h2>
+                <div>${sanitizedDescription}</div>
                 `,
                 // 글 생성, 업데이트, 삭제 링크
                 `<a href="/create">create</a>
-                <a href="/update?id=${title}">update</a>
+                <a href="/update?id=${sanitizedTitle}">update</a>
                 <form action="delete_process" method="post">
-                  <input type="hidden" name="id" value="${title}">
+                  <input type="hidden" name="id" value="${sanitizedTitle}">
                   <input type="submit" value="delete">
                 </form>
                 `
@@ -92,7 +112,7 @@ var app = http.createServer(function(request,response){
               response.end(html);
             });
           });
-        }
+        };
     } else if(pathname === '/create'){
       fs.readdir('./data', function(error, filelist){
         var title = 'WEB - create';
@@ -108,7 +128,7 @@ var app = http.createServer(function(request,response){
         `, '');
         response.writeHead(200);
         response.end(html);
-      })
+      });
     } else if(pathname === '/create_process'){
       var body = '';
       request.on('data', function(data){
@@ -128,7 +148,8 @@ var app = http.createServer(function(request,response){
       });
     } else if(pathname === '/update'){
       fs.readdir('./data', function(error, filelist){
-        fs.readFile(`data/${queryData.id}`, 'utf8', function(err, description){
+        var filteredId = path.parse(queryData.id).base;
+        fs.readFile(`data/${filteredId}`, 'utf8', function(err, description){
           var title = queryData.id;
           var list = template.list(filelist); 
           var html = template.html(title, list,
@@ -173,7 +194,8 @@ var app = http.createServer(function(request,response){
       request.on('end', function(){
         var post = qs.parse(body);
         var id = post.id;
-        fs.unlink(`data/${id}`, function(error){
+        var filteredId = path.parse(id).base;
+        fs.unlink(`data/${filteredId}`, function(error){
           // 리디렉션
           response.writeHead(302, {Location: `/`});
           response.end();
@@ -184,4 +206,5 @@ var app = http.createServer(function(request,response){
       response.end('Not found');
     }
 });
+
 app.listen(3000);
