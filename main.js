@@ -46,36 +46,6 @@ var app = http.createServer(function(request,response){
         response.end(html);
        });
       } else {
-        /*
-          fs.readdir('./data', function(error, filelist){
-            var filteredId = path.parse(queryData.id).base;
-            fs.readFile(`data/${filteredId}`, 'utf8', function(err, description){
-              var title = queryData.id;
-              var sanitizedTitle = sanitizeHtml(title);
-              var sanitizedDescription = sanitizeHtml(description, {
-                // 허용할 html 태그를 인자로
-                allowedTags: ['h1']
-              });
-              var list = template.list(filelist); 
-              var html = template.html(sanitizedTitle, list,
-                `
-                <h2>${sanitizedTitle}</h2>
-                <div>${sanitizedDescription}</div>
-                `,
-                // 글 생성, 업데이트, 삭제 링크
-                `<a href="/create">create</a>
-                <a href="/update?id=${sanitizedTitle}">update</a>
-                <form action="delete_process" method="post">
-                  <input type="hidden" name="id" value="${sanitizedTitle}">
-                  <input type="submit" value="delete">
-                </form>
-                `
-              );
-              response.writeHead(200);
-              response.end(html);
-            });
-          });
-          */
           db.query(`SELECT * FROM test`, function(error, test){
             if(error){
               throw error;
@@ -115,9 +85,9 @@ var app = http.createServer(function(request,response){
             });
           }
     } else if(pathname === '/create'){
-      db.query(`SELECT * FROM test`, function(error, test){
+      db.query(`SELECT * FROM test`, function(error, tests){
         var title = `마당발`;
-        var list = template.list(test);
+        var list = template.list(tests);
         var html = template.html(title, list,
           `
           <form action="/create_process" method="post">
@@ -160,21 +130,31 @@ var app = http.createServer(function(request,response){
         }
       );
     } else if(pathname === '/update'){
-      fs.readdir('./data', function(error, filelist){
-        var filteredId = path.parse(queryData.id).base;
-        fs.readFile(`data/${filteredId}`, 'utf8', function(err, description){
-          var title = queryData.id;
-          var list = template.list(filelist); 
-          var html = template.html(title, list,
+      db.query(`SELECT * FROM test`, function(error, tests){
+        if(error){
+          throw error;
+        }
+        db.query(`SELECT * FROM test WHERE id = ?`,[queryData.id], function(error2, test){
+        if(error2){
+          throw error2;
+        }
+          var list = template.list(tests);
+          var html = template.html(test[0].name, list,
             `<form action="/update_process" method="post">
-              <input type="hidden" name="id" value="${title}">
-              <p><input type="text" name="title" placeholder="title" value="${title}"></p>
-              <p><textarea name="description" placeholder="description">${description}</textarea></p>
+              <input type="hidden" name="id" value="${test[0].id}">
+              <p><input type="text" name="name" placeholder="name" value="${test[0].name}"></p>
+              <p><input type="text" name="job" placeholder="job" value="${test[0].job}"></p>
+              <p><textarea name="intro" placeholder="intro">${test[0].intro}</textarea></p>
+              <p><input type="text" name="youtube" placeholder="youtube" value="${test[0].youtube}"></p>
+              <p><input type="text" name="tel" placeholder="tel" value="${test[0].tel}"></p>
+              <p><input type="text" name="email" placeholder="email" value="${test[0].email}"></p>
+              <p><input type="text" name="address" placeholder="address" value="${test[0].address}"></p>
+              <p><input type="text" name="username" placeholder="username" value="${test[0].username}"></p>
               <p><input type="submit"></p>
             </form>`,
             // 글 생성, 수정 부분
             `<a href="/create">create</a>
-            <a href="/update?id=${title}">update</a>`
+            <a href="/update?id=${test[0].id}">update</a>`
           );
           response.writeHead(200);
           response.end(html);
@@ -187,17 +167,11 @@ var app = http.createServer(function(request,response){
       });
       request.on('end', function(){
         var post = qs.parse(body);
-        var id = post.id;
-        var title = post.title;
-        var description = post.description;
-        console.log(post);
-        fs.rename(`data/${id}`, `data/${title}`, function(error){
-          fs.writeFile(`data/${title}`, description, 'utf8', function(err){
-            // 리디렉션
-            response.writeHead(302, {Location: `/?id=${title}`});
-            response.end();
-          });
-        });
+
+        db.query('UPDATE test SET name=?, job=?, intro=?, youtube=?, tel=?, email=?, address=?, username=? WHERE id=?', [post.name, post.job, post.intro, post.youtube, post.tel, post.email, post.address, post.username, post.id], function(error, result){
+          response.writeHead(302, {Location: `/?id=${post.id}`});
+          response.end();
+        })
       });
     } else if(pathname === '/delete_process'){
       var body = '';
