@@ -46,7 +46,7 @@ var app = http.createServer(function(request,response){
         response.end(html);
        });
       } else {
-          db.query(`SELECT * FROM test`, function(error, test){
+          db.query(`SELECT * FROM test`, function(error, tests){
             if(error){
               throw error;
             }
@@ -61,7 +61,7 @@ var app = http.createServer(function(request,response){
               var tel = test[0].tel;
               var email = test[0].email;
               var address = test[0].address;
-              var list = template.list(test);
+              var list = template.list(tests);
               var html = template.html(title, list,
                 `
                 <h2>${title}</h2>
@@ -160,6 +160,7 @@ var app = http.createServer(function(request,response){
           response.end(html);
         });
       });
+      // 
     } else if(pathname === '/update_process'){
       var body = '';
       request.on('data', function(data){
@@ -167,7 +168,6 @@ var app = http.createServer(function(request,response){
       });
       request.on('end', function(){
         var post = qs.parse(body);
-
         db.query('UPDATE test SET name=?, job=?, intro=?, youtube=?, tel=?, email=?, address=?, username=? WHERE id=?', [post.name, post.job, post.intro, post.youtube, post.tel, post.email, post.address, post.username, post.id], function(error, result){
           response.writeHead(302, {Location: `/?id=${post.id}`});
           response.end();
@@ -182,16 +182,18 @@ var app = http.createServer(function(request,response){
         var post = qs.parse(body);
         var id = post.id;
         var filteredId = path.parse(id).base;
-        fs.unlink(`data/${filteredId}`, function(error){
-          // 리디렉션
+        db.query('DELETE FROM test WHERE id = ?', [post.id], function(error, result){
+          if(error){
+            throw error;
+          }
           response.writeHead(302, {Location: `/`});
           response.end();
-        })
         });
-      } else {
-      response.writeHead(404);
-      response.end('Not found');
-    }
+        });
+    } else {
+    response.writeHead(404);
+    response.end('Not found');
+  }
 });
 
 app.listen(3000);
